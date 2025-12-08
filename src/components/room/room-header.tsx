@@ -31,23 +31,29 @@ export function RoomHeader({
 	};
 
 	return (
-		<header className='border-b border-zinc-800 p-4 flex items-center justify-between bg-zinc-900/30'>
-			<div className='flex items-center gap-4'>
-				<div className='flex flex-col'>
-					<span className='text-xs text-zinc-500 uppercase'>Room ID</span>
+		<header className='border-b border-zinc-800 p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 bg-zinc-900/30'>
+			<div className='flex items-center gap-3 sm:gap-4 w-full sm:w-auto'>
+				<div className='flex flex-col min-w-0'>
+					<span className='text-[10px] sm:text-xs text-zinc-500 uppercase'>
+						Room ID
+					</span>
 					<div className='flex items-center gap-2'>
-						<span className='font-bold text-green-500'>{roomId}</span>
+						<span className='font-bold text-green-500 text-sm sm:text-base truncate max-w-[120px] sm:max-w-none'>
+							{roomId}
+						</span>
 						<button
 							onClick={copyLink}
-							className='text-[10px] bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 transition-colors'
+							className='text-[10px] bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 transition-colors flex-shrink-0'
 						>
 							{copyStatus === 'idle' ? 'Copy' : 'Copied'}
 						</button>
 					</div>
 				</div>
-				<div className='h-8 w-px bg-zinc-800' />
-				<div className='flex flex-col'>
-					<span className='text-xs text-zinc-500 uppercase'>Self-Destruct</span>
+				<div className='h-8 w-px bg-zinc-800 hidden sm:block' />
+				<div className='flex flex-col ml-auto sm:ml-0'>
+					<span className='text-[10px] sm:text-xs text-zinc-500 uppercase'>
+						Self-Destruct
+					</span>
 					<span
 						className={`text-sm font-bold flex items-center gap-2 ${
 							timeRemaining !== null && timeRemaining < 60
@@ -63,7 +69,7 @@ export function RoomHeader({
 			</div>
 			<button
 				onClick={onDestroy}
-				className='text-xs bg-zinc-800 hover:bg-red-600 px-3 py-1.5 rounded text-zinc-400 hover:text-white font-bold transition-all group flex items-center gap-2 disabled:opacity-50 cursor-pointer'
+				className='text-xs bg-zinc-800 hover:bg-red-600 px-3 py-1.5 rounded text-zinc-400 hover:text-white font-bold transition-all group flex items-center gap-2 disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center sm:justify-start'
 			>
 				<span className='group-hover:animate-pulse'>💥</span>
 				DESTROY NOW
