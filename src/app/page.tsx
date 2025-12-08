@@ -3,10 +3,14 @@
 import { useUsername } from '@/hooks/use-username';
 import { client } from '@/lib/client';
 import { useMutation } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function Home() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const wasDestroyed = searchParams.get('destroyed') === 'true';
+	const error = searchParams.get('error');
+
 	const { username } = useUsername();
 
 	const { mutate: createRoom, isPending } = useMutation({
@@ -19,6 +23,31 @@ export default function Home() {
 	return (
 		<main className='flex min-h-screen flex-col items-center justify-center p-4'>
 			<div className='w-full max-w-md space-y-8'>
+				{wasDestroyed && (
+					<div className='bg-red-900 text-red-100 p-4 rounded-md text-center'>
+						<strong className='font-bold'>The room has been destroyed.</strong>
+						<p>All messages have been permanently deleted.</p>
+					</div>
+				)}
+				{error === 'room-not-found' && (
+					<div className='bg-red-900 text-red-100 p-4 rounded-md text-center'>
+						<strong className='font-bold'>Room Not Found</strong>
+						<p>
+							The room you are trying to access does not exist or has been
+							destroyed.
+						</p>
+					</div>
+				)}
+				{error === 'room-full' && (
+					<div className='bg-red-900 text-red-100 p-4 rounded-md text-center'>
+						<strong className='font-bold'>The room is full.</strong>
+						<p>
+							The room you are trying to access has reached its maximum
+							capacity.
+						</p>
+					</div>
+				)}
+
 				<div className='text-center space-y-2'>
 					<h1 className='text-2xl font-bold tracking-tight text-green-500'>
 						{'>'}private_chat

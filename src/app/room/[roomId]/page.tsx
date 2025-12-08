@@ -2,8 +2,10 @@
 
 import { useUsername } from '@/hooks/use-username';
 import { client } from '@/lib/client';
-import { useMutation } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
+import { useRealtime } from '@/lib/realtime-client'
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { useParams, useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 
 const formatTimeRemaining = (seconds: number) => {
@@ -18,11 +20,22 @@ export default function Room() {
 	const params = useParams();
 	const roomId = params.roomId as string;
 
+	const router = useRouter()
+
 	const { username } = useUsername();
 	const [input, setInput] = useState('');
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
 	const [timeRemaining, setTimeRemaining] = useState<number | null>(null); // in seconds
+
+
+
+	const { data: messages, refetch } = useQuery({
+		queryKey: ['messages', roomId],
+		queryFn: async () => {
+			return (await client.messages.get({ query: { roomId } })).data;
+		},
+	});
 
 	const { mutate: sendMessage, isPending } = useMutation({
 		mutationFn: async ({ text }: { text: string }) => {
@@ -36,6 +49,20 @@ export default function Room() {
 			inputRef.current?.focus();
 		},
 	});
+
+	useRealtime({
+		channels: [roomId],
+		events: ['chat.message', 'chat.destroy'],
+		onData: ({event}) => {
+			if (event === 'chat.message') {
+				refetch()
+			}
+
+			if (event === 'chat.destroy') {
+				router.push('/?destroyed=true')
+			}
+		}
+	})
 
 	const copyLink = () => {
 		const url = window.location.href;
@@ -84,7 +111,39 @@ export default function Room() {
 				</button>
 			</header>
 
-			<div className='flex-1 overflow-auto p-4 space-y-4 scrollbar-thin'></div>
+			<div className='flex-1 overflow-auto p-4 space-y-4 scrollbar-thin'>
+				{messages?.messages.length === 0 && (
+					<div className='flex items-center justify-center h-full'>
+						<p className='text-zinc-600 text-sm font-mono'>
+							No messages yet, start the conversation.
+						</p>
+					</div>
+				)}
+
+				{messages?.messages.map(message => (
+					<div key={message.id} className='flex flex-col items-start'>
+						<div className='max-w-[80%] group'>
+							<div className='flex items-baseline gap-3 mb-1'>
+								<span
+									className={`text-xs font-bold ${
+										message.sender === username
+											? 'text-green-500'
+											: 'text-blue-500'
+									}`}
+								>
+									{message.sender === username ? 'You' : message.sender}
+								</span>
+								<span className='text-[10px] text-zinc-600'>
+									{format(message.timestamp, 'HH:mm:ss')}
+								</span>
+							</div>
+							<p className='text-sm text-zinc-300 leading-relaxed break-all'>
+								{message.text}
+							</p>
+						</div>
+					</div>
+				))}
+			</div>
 
 			<div className='p-4 border-t border-zinc-800 bg-zinc-900/30'>
 				<div className='flex gap-4'>
