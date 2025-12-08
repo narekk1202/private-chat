@@ -11,20 +11,27 @@ export const proxy = async (req: NextRequest) => {
 
 	const roomId = roomMatch[1];
 
-	const meta = await redis.hgetall<{ connected: string[]; createdAt: number }>(
-		`meta:${roomId}`
-	);
+	const meta = await redis.hgetall<{
+		connected: string | string[];
+		createdAt: number;
+	}>(`meta:${roomId}`);
 
 	if (!meta)
 		return NextResponse.redirect(new URL('/?error=room-not-found', req.url));
 
+	const connected: string[] = Array.isArray(meta.connected)
+		? meta.connected
+		: typeof meta.connected === 'string'
+		? JSON.parse(meta.connected)
+		: [];
+
 	const existingToken = req.cookies.get('x-auth-token')?.value;
 
-	if (existingToken && meta.connected.includes(existingToken)) {
+	if (existingToken && connected.includes(existingToken)) {
 		return NextResponse.next();
 	}
 
-	if (meta.connected.length >= 2) {
+	if (connected.length >= 2) {
 		return NextResponse.redirect(new URL('/?error=room-full', req.url));
 	}
 
@@ -40,7 +47,7 @@ export const proxy = async (req: NextRequest) => {
 	});
 
 	await redis.hset(`meta:${roomId}`, {
-		connected: [...meta.connected, token],
+		connected: [...connected, token],
 	});
 
 	return response;
