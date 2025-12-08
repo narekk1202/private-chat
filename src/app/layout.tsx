@@ -1,3 +1,4 @@
+import { Providers } from '@/components/providers';
 import type { Metadata } from 'next';
 import { JetBrains_Mono } from 'next/font/google';
 import './globals.css';
@@ -19,10 +20,8 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang='en'>
-			<body
-				className={`${jetbrainsMono.variable} antialiased`}
-			>
-				{children}
+			<body className={`${jetbrainsMono.variable} antialiased`}>
+				<Providers>{children}</Providers>
 			</body>
 		</html>
 	);
