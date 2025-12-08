@@ -1,109 +1,30 @@
-import { Message, realtime } from '@/lib/realtime';
-import { redis } from '@/lib/redis';
 import { Elysia } from 'elysia';
-import { nanoid } from 'nanoid';
 import z from 'zod';
 import { authMiddleware } from './auth';
-
-const ROOM_TTL_SECONDS = 60 * 10; // 10 minutes
+import {
+	createRoomHandler,
+	deleteRoomHandler,
+	getMessagesHandler,
+	getRoomTTLHandler,
+	sendMessageHandler,
+} from './handlers';
 
 const rooms = new Elysia({ prefix: '/rooms' })
-	.post('/create', async () => {
-		const roomId = nanoid();
-
-		await redis.hset(`meta:${roomId}`, {
-			connected: [],
-			createdAt: Date.now(),
-		});
-
-		await redis.expire(`meta:${roomId}`, ROOM_TTL_SECONDS);
-
-		return { roomId };
-	})
+	.post('/create', createRoomHandler)
 	.use(authMiddleware)
-	.get(
-		'/ttl',
-		async ({ auth }) => {
-			const ttl = await redis.ttl(`meta:${auth.roomId}`);
-			return { ttl: ttl > 0 ? ttl : 0 };
-		},
-		{ query: z.object({ roomId: z.string() }) }
-	)
-	.delete(
-		'/',
-		async ({ auth }) => {
-			await realtime
-				.channel(auth.roomId)
-				.emit('chat.destroy', { isDestroyed: true });
-				
-			await Promise.all([
-				redis.del(auth.roomId),
-				redis.del(`meta:${auth.roomId}`),
-				redis.del(`messages:${auth.roomId}`),
-			]);
-		},
-		{ query: z.object({ roomId: z.string() }) }
-	);
+	.get('/ttl', getRoomTTLHandler, { query: z.object({ roomId: z.string() }) })
+	.delete('/', deleteRoomHandler, { query: z.object({ roomId: z.string() }) });
 
 const messages = new Elysia({ prefix: '/messages' })
 	.use(authMiddleware)
-	.post(
-		'/',
-		async ({ body, auth }) => {
-			const { roomId } = auth;
-			const { sender, text } = body;
-
-			const roomExists = await redis.exists(`meta:${roomId}`);
-
-			if (!roomExists) {
-				throw new Error('Room does not exist or has expired');
-			}
-
-			const message: Message = {
-				id: nanoid(),
-				sender,
-				text,
-				timestamp: Date.now(),
-				roomId,
-			};
-
-			await redis.rpush(`messages:${roomId}`, {
-				...message,
-				token: auth.token,
-			});
-			await realtime.channel(roomId).emit('chat.message', message);
-
-			const remainingTTL = await redis.ttl(`meta:${roomId}`);
-
-			await redis.expire(`messages:${roomId}`, remainingTTL);
-			await redis.expire(roomId, remainingTTL);
-		},
-		{
-			query: z.object({ roomId: z.string() }),
-			body: z.object({
-				sender: z.string().max(100),
-				text: z.string().max(1000),
-			}),
-		}
-	)
-	.get(
-		'/',
-		async ({ auth }) => {
-			const messages = await redis.lrange<Message>(
-				`messages:${auth.roomId}`,
-				0,
-				-1
-			);
-
-			return {
-				messages: messages.map(message => ({
-					...message,
-					token: message.token === auth.token ? auth.token : undefined,
-				})),
-			};
-		},
-		{ query: z.object({ roomId: z.string() }) }
-	);
+	.post('/', sendMessageHandler, {
+		query: z.object({ roomId: z.string() }),
+		body: z.object({
+			sender: z.string().max(100),
+			text: z.string().max(1000),
+		}),
+	})
+	.get('/', getMessagesHandler, { query: z.object({ roomId: z.string() }) });
 
 const app = new Elysia({ prefix: '/api' }).use(rooms).use(messages);
 
