@@ -2,11 +2,11 @@
 
 import { useUsername } from '@/hooks/use-username';
 import { client } from '@/lib/client';
-import { useRealtime } from '@/lib/realtime-client'
+import { useRealtime } from '@/lib/realtime-client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useParams, useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 
 const formatTimeRemaining = (seconds: number) => {
 	const secs = seconds % 60;
@@ -20,7 +20,7 @@ export default function Room() {
 	const params = useParams();
 	const roomId = params.roomId as string;
 
-	const router = useRouter()
+	const router = useRouter();
 
 	const { username } = useUsername();
 	const [input, setInput] = useState('');
@@ -28,7 +28,12 @@ export default function Room() {
 	const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
 	const [timeRemaining, setTimeRemaining] = useState<number | null>(null); // in seconds
 
-
+	const { data: ttlData } = useQuery({
+		queryKey: ['ttl', roomId],
+		queryFn: async () => {
+			return (await client.rooms.ttl.get({ query: { roomId } })).data;
+		},
+	});
 
 	const { data: messages, refetch } = useQuery({
 		queryKey: ['messages', roomId],
@@ -53,16 +58,16 @@ export default function Room() {
 	useRealtime({
 		channels: [roomId],
 		events: ['chat.message', 'chat.destroy'],
-		onData: ({event}) => {
+		onData: ({ event }) => {
 			if (event === 'chat.message') {
-				refetch()
+				refetch();
 			}
 
 			if (event === 'chat.destroy') {
-				router.push('/?destroyed=true')
+				router.push('/?destroyed=true');
 			}
-		}
-	})
+		},
+	});
 
 	const copyLink = () => {
 		const url = window.location.href;
@@ -70,6 +75,37 @@ export default function Room() {
 		setCopyStatus('copied');
 		setTimeout(() => setCopyStatus('idle'), 2000);
 	};
+
+	const setTime = useEffectEvent(() => {
+		if (ttlData?.ttl !== undefined) {
+			setTimeRemaining(ttlData.ttl);
+		}
+	});
+
+	useEffect(() => {
+		setTime();
+	}, [ttlData]);
+
+	useEffect(() => {
+		if (timeRemaining === null || timeRemaining < 0) return;
+
+		if (timeRemaining === 0) {
+			router.push('/?destroyed=true');
+			return;
+		}
+
+		const interval = setInterval(() => {
+			setTimeRemaining(prev => {
+				if (prev === null || prev <= 1) {
+					clearInterval(interval);
+					return 0;
+				}
+				return prev - 1;
+			});
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [timeRemaining, router]);
 
 	return (
 		<main className='flex flex-col h-screen max-h-screen overflow-hidden'>
