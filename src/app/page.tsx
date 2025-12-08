@@ -1,33 +1,13 @@
 'use client';
 
+import { useUsername } from '@/hooks/use-username';
 import { client } from '@/lib/client';
 import { useMutation } from '@tanstack/react-query';
-import { nanoid } from 'nanoid';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-
-const ANIMALS = [
-	'Lion',
-	'Tiger',
-	'Bear',
-	'Eagle',
-	'Shark',
-	'Wolf',
-	'Fox',
-	'Hawk',
-	'Panther',
-	'Leopard',
-];
-const STORAGE_KEY = 'chat_username';
-
-const generateUsername = () => {
-	const word = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-	return `anonymous-${word}-${nanoid(5)}`;
-};
 
 export default function Home() {
 	const router = useRouter();
-	const [username, setUsername] = useState('Narek');
+	const { username } = useUsername();
 
 	const { mutate: createRoom, isPending } = useMutation({
 		mutationFn: async () => await client.rooms.create.post(),
@@ -35,23 +15,6 @@ export default function Home() {
 			router.push('/room/' + res.data?.roomId);
 		},
 	});
-
-	useEffect(() => {
-		const main = () => {
-			const stored = localStorage.getItem(STORAGE_KEY);
-
-			if (stored) {
-				setUsername(stored);
-				return;
-			} else {
-				const newUsername = generateUsername();
-				localStorage.setItem(STORAGE_KEY, newUsername);
-				setUsername(newUsername);
-			}
-		};
-
-		main();
-	}, []);
 
 	return (
 		<main className='flex min-h-screen flex-col items-center justify-center p-4'>
