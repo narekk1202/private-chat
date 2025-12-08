@@ -55,6 +55,15 @@ export default function Room() {
 		},
 	});
 
+	const { mutate: destroyRoom } = useMutation({
+		mutationFn: async () => {
+			await client.rooms.delete(null, { query: { roomId } });
+		},
+		onSuccess: () => {
+			router.push('/?destroyed=true');
+		},
+	});
+
 	useRealtime({
 		channels: [roomId],
 		events: ['chat.message', 'chat.destroy'],
@@ -141,7 +150,10 @@ export default function Room() {
 						</span>
 					</div>
 				</div>
-				<button className='text-xs bg-zinc-800 hover:bg-red-600 px-3 py-1.5 rounded text-zinc-400 hover:text-white font-bold transition-all group flex items-center gap-2 disabled:opacity-50 cursor-pointer'>
+				<button
+					onClick={() => destroyRoom()}
+					className='text-xs bg-zinc-800 hover:bg-red-600 px-3 py-1.5 rounded text-zinc-400 hover:text-white font-bold transition-all group flex items-center gap-2 disabled:opacity-50 cursor-pointer'
+				>
 					<span className='group-hover:animate-pulse'>💥</span>
 					DESTROY NOW
 				</button>
