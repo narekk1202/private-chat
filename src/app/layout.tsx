@@ -11,7 +11,6 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
 	title: 'Private Chat',
 	description: 'A secure, real-time private chat application.',
-	viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 };
 
 export default function RootLayout({
