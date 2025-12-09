@@ -4,53 +4,58 @@ import { redis } from './lib/redis';
 
 export const proxy = async (req: NextRequest) => {
 	const pathname = req.nextUrl.pathname;
+  const roomMatch = pathname.match(/^\/room\/([^\/]+)(\/.*)?$/);
 
-	const roomMatch = pathname.match(/^\/room\/([^\/]+)(\/.*)?$/);
+  if (!roomMatch) return NextResponse.next();
 
-	if (!roomMatch) return NextResponse.redirect(new URL('/', req.url));
+  const roomId = roomMatch[1];
+  const metaKey = `meta:${roomId}`;
 
-	const roomId = roomMatch[1];
+  const meta = await redis.hgetall<{
+    connected: string;
+    createdAt: number;
+  }>(metaKey);
 
-	const meta = await redis.hgetall<{
-		connected: string | string[];
-		createdAt: number;
-	}>(`meta:${roomId}`);
+  if (!meta) {
+    return NextResponse.redirect(new URL('/?error=room-not-found', req.url));
+  }
 
-	if (!meta)
-		return NextResponse.redirect(new URL('/?error=room-not-found', req.url));
+  let connected: string[] = [];
+  try {
+    connected = typeof meta.connected === 'string' 
+      ? JSON.parse(meta.connected) 
+      : (meta.connected || []);
+  } catch {
+    connected = [];
+  }
 
-	const connected: string[] = Array.isArray(meta.connected)
-		? meta.connected
-		: typeof meta.connected === 'string'
-		? JSON.parse(meta.connected)
-		: [];
+  const existingToken = req.cookies.get('x-auth-token')?.value;
 
-	const existingToken = req.cookies.get('x-auth-token')?.value;
+  if (existingToken && connected.includes(existingToken)) {
+    return NextResponse.next();
+  }
 
-	if (existingToken && connected.includes(existingToken)) {
-		return NextResponse.next();
-	}
+  if (connected.length >= 2) {
+    return NextResponse.redirect(new URL('/?error=room-full', req.url));
+  }
 
-	if (connected.length >= 2) {
-		return NextResponse.redirect(new URL('/?error=room-full', req.url));
-	}
+  const token = nanoid();
+  const response = NextResponse.next();
 
-	const response = NextResponse.next();
+  response.cookies.set('x-auth-token', token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax', 
+    secure: process.env.NODE_ENV === 'production',
+  });
 
-	const token = nanoid();
+  const updatedConnected = [...connected, token];
+  
+  await redis.hset(metaKey, {
+    connected: JSON.stringify(updatedConnected),
+  });
 
-	response.cookies.set('x-auth-token', token, {
-		path: '/',
-		httpOnly: true,
-		sameSite: 'strict',
-		secure: process.env.NODE_ENV === 'production',
-	});
-
-	await redis.hset(`meta:${roomId}`, {
-		connected: [...connected, token],
-	});
-
-	return response;
+  return response;
 };
 
 export const config = {
